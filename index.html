@@ -60,7 +60,13 @@
   .views { display: inline-flex; background: rgba(255,255,255,.08); border-radius: 12px; padding: 4px; }
   .views button { border: 0; background: none; color: var(--on-deep-muted); padding: 8px 18px; border-radius: 9px; font-size: 15px; font-weight: 600; }
   .views button[aria-pressed="true"] { background: var(--on-deep); color: var(--deep); }
-  .rooms { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid rgba(255,255,255,.1); }
+  .rooms-bar { display: flex; align-items: stretch; border-top: 1px solid rgba(255,255,255,.1); }
+  .rooms { flex: 1; min-width: 0; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+            mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); }
+  .rarrow { flex: none; width: 40px; border: 0; background: none; color: var(--on-deep); font-size: 22px; line-height: 1; border-radius: 10px; margin: 4px 0; }
+  .rarrow:hover:not(:disabled) { background: rgba(255,255,255,.1); }
+  .rarrow:disabled { opacity: .2; cursor: default; }
   .rooms::-webkit-scrollbar { display: none; }
   .room { flex: none; border: 0; background: none; color: var(--on-deep-muted); padding: 14px 14px 12px; font-size: 14px; font-weight: 500; white-space: nowrap; border-bottom: 3px solid transparent; }
   .room:hover { color: var(--on-deep); }
@@ -102,8 +108,11 @@
   .c-taken.is-new { background: var(--new); color: var(--new-ink); box-shadow: inset 3px 0 0 var(--new-bar); }
   .c-taken.is-new:hover { box-shadow: inset 3px 0 0 var(--new-bar), inset 0 0 0 1px var(--new-bar); }
   .c-closed, .c-none { background: repeating-linear-gradient(135deg, transparent 0 7px, var(--line) 7px 8px); color: var(--faint); font-weight: 500; font-size: 12px; }
-  .c-past { box-shadow: inset 0 0 0 1px var(--line); opacity: .45; }
-  .past .c-taken { opacity: .6; }
+  .c-past { box-shadow: inset 0 0 0 1px var(--line); color: var(--faint); cursor: not-allowed; background: repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--line) 60%, transparent) 9px 10px); }
+  .c-past small { font-size: 11px; opacity: 1; }
+  .c-taken.is-past { opacity: .55; }
+  .dh.is-past { opacity: .45; }
+  .dh.is-past .dow::after { content: " 지남"; }
 
   .pl { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.25; }
   .pl b { font-size: 13px; font-weight: 700; color: var(--muted); }
@@ -134,6 +143,13 @@
   .rh:hover { background: var(--bg); }
   .rh b { display: block; font-size: 14px; font-weight: 700; word-break: keep-all; }
   .rh small { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+  .hroom { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .hroom-t { display: flex; align-items: baseline; gap: 8px; border: 0; background: none; padding: 0 4px 10px; }
+  .hroom-t b { font-size: 16px; font-weight: 800; }
+  .hroom-t small { font-size: 12px; color: var(--muted); }
+  .hgrid { display: grid; grid-template-columns: repeat(var(--n), minmax(96px, 1fr)); gap: 6px; }
+  .hcol { display: flex; flex-direction: column; gap: 4px; }
 
   /* ── 월간 ── */
   .month { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
@@ -290,7 +306,11 @@
       </div>
     </div>
   </div>
-  <div class="wrap"><nav class="rooms" id="rooms" aria-label="특별실 선택"></nav></div>
+  <div class="wrap"><div class="rooms-bar" id="roomsBar">
+    <button class="rarrow" id="roomsPrev" aria-label="앞쪽 특별실">‹</button>
+    <nav class="rooms" id="rooms" aria-label="특별실 선택"></nav>
+    <button class="rarrow" id="roomsNext" aria-label="뒤쪽 특별실">›</button>
+  </div></div>
 </header>
 
 <main class="wrap">
@@ -341,7 +361,11 @@
     <p class="kicker">예약하기</p>
     <h3 id="rTitle"></h3>
     <ul class="chips" id="rList"></ul>
-    <label for="rContent">학급 또는 수업명</label>
+    <div id="rTimeBox" hidden>
+      <label for="rTime">사용 시간 (회의실)</label>
+      <input id="rTime" maxlength="30" placeholder="비워 두면 고른 시간으로 자동 입력" autocomplete="off">
+    </div>
+    <label for="rContent" id="rContentLabel">학급 또는 수업명</label>
     <input id="rContent" maxlength="30" placeholder="예: 4-3" autocomplete="off">
     <label for="rName">신청자 이름</label>
     <input id="rName" maxlength="20" placeholder="취소할 때 같은 이름이 필요합니다">
@@ -423,7 +447,7 @@ const store = {
 };
 const state = {
   view: store.get('view') || 'week', rooms: [], room: null, today: null, anchor: null,
-  adminPw: '', history: [], data: null, slots: new Map(), selected: new Map(), dayIdx: 0, bell: {}, sheetUrl: '#'
+  adminPw: '', history: [], hourRooms: new Set(), data: null, slots: new Map(), selected: new Map(), dayIdx: 0, bell: {}, sheetUrl: '#'
 };
 
 const CFG = window.APP_CONFIG || {};
@@ -465,7 +489,10 @@ function splitRoom(raw) {
   const m = raw.match(/\(?\s*(\d+관\s*\d+층)\s*\)?/);
   return { name: (m ? raw.replace(m[0], '') : raw).trim(), place: m ? m[1] : '' };
 }
-function periodHtml(p) { return `<div class="pl"><b>${esc(p)}</b>${state.bell[p] ? `<small>${esc(state.bell[p])}</small>` : ''}</div>`; }
+function periodHtml(p) {
+  if (/^\d{2}:00$/.test(p)) return `<div class="pl"><b>${Number(p.slice(0, 2))}시</b></div>`;
+  return `<div class="pl"><b>${esc(p)}</b>${state.bell[p] ? `<small>${esc(state.bell[p])}</small>` : ''}</div>`;
+}
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -561,6 +588,8 @@ function applyInit(r) {
 }
 
 function show(data, key) {
+  if (data.type === 'hour') state.hourRooms.add(data.room);
+  (data.hourRooms || []).forEach(h => state.hourRooms.add(h.room));
   const first = state.shownKey !== key;
   state.data = data; state.shownKey = key;
   if (state.view === 'week' && first) {
@@ -636,11 +665,13 @@ function setFont(v) {
 function renderChrome() {
   $$('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === state.view));
   const roomView = state.view !== 'day';
-  $('#rooms').hidden = !roomView;
+  $('#roomsBar').hidden = !roomView;
   if (roomView) {
     $('#rooms').innerHTML = state.rooms.map(r =>
       `<button class="room" aria-pressed="${r === state.room}" data-room="${esc(r)}">${esc(splitRoom(r).name)}</button>`).join('');
-    const cur = $('#rooms [aria-pressed="true"]'); if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const cur = $('#rooms [aria-pressed="true"]');
+    if (cur) { const nav = $('#rooms'); nav.scrollLeft = cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2; }
+    setTimeout(syncRoomArrows, 50);
     const { name, place } = splitRoom(state.room);
     $('#heroTitle').textContent = name;
     $('#heroMeta').innerHTML = [place, state.view === 'week' ? '주간 현황' : '월간 현황'].filter(Boolean).map(s => `<span>${esc(s)}</span>`).join('');
@@ -708,13 +739,13 @@ function cellHtml(room, day, p, s) {
   state.slots.set(key, { room, iso: day.iso, period: p, past: day.past, s });
   if (s.status === 'closed') return `<div class="c c-closed">${s.text ? esc(s.text) : '휴일'}</div>`;
   if (s.status === 'free') {
-    if (day.past) return '<div class="c c-past" aria-hidden="true"></div>';
+    if (day.past) return '<div class="c c-past" title="지난 날짜는 예약할 수 없습니다"><small>지난 날</small></div>';
     const on = state.selected.has(key);
     const cl = s.cleared ? `<small>이 날만 비움</small><s>${esc(s.cleared)}</s>` : '';
     return `<button class="c c-free${on ? ' is-sel' : ''}${s.cleared ? ' is-cleared' : ''}" data-act="${s.cleared && !on ? 'cleared' : 'toggle'}" data-key="${esc(key)}" aria-pressed="${on}" aria-label="${esc(splitRoom(room).name)} ${esc(p)} 비어 있음">${on ? '<span class="plus">✓ 선택</span>' : cl || '<span class="plus">+ 선택</span>'}</button>`;
   }
-  const sub = s.by || (s.isNew ? '새 예약' : '');
-  return `<button class="c c-taken${s.isNew ? ' is-new' : ''}" data-act="info" data-key="${esc(key)}">${esc(s.text)}${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
+  const sub = (s.time || s.who) ? [s.time, s.who || s.by].filter(Boolean).join(' · ') : (s.by || (s.isNew ? '새 예약' : ''));
+  return `<button class="c c-taken${s.isNew ? ' is-new' : ''}${day.past ? ' is-past' : ''}" data-act="info" data-key="${esc(key)}">${esc(s.text)}${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
 }
 
 function renderDay() {
@@ -736,7 +767,16 @@ function renderDay() {
     });
     h += '</tr>';
   });
-  $('#view').innerHTML = h + '</tbody></table></div>';
+  h += '</tbody></table></div>';
+  (d.hourRooms || []).forEach(hr => {
+    const { name, place } = splitRoom(hr.room);
+    h += `<div class="hroom${d.past ? ' past' : ''}"><button class="hroom-t" data-goroom="${esc(hr.room)}"><b>${esc(name)}</b>${place ? `<small>${esc(place)}</small>` : ''}<small>주간 보기 ›</small></button>`;
+    if (!hr.exists) h += '<p class="empty" style="padding:16px">이 날짜 시간표가 없습니다.</p>';
+    else h += `<div class="scroll"><div class="hgrid" style="--n:${hr.periods.length}">` + hr.periods.map(p =>
+      `<div class="hcol">${periodHtml(p)}${cellHtml(hr.room, Object.assign({ exists: true }, day), p, hr.slots.find(x => x.period === p))}</div>`).join('') + '</div></div>';
+    h += '</div>';
+  });
+  $('#view').innerHTML = h;
 }
 
 function renderWeek() {
@@ -748,7 +788,7 @@ function renderWeek() {
   let h = `<div class="g" style="--cols:${idxs.length}"><div></div>`;
   idxs.forEach(i => {
     const d = w.days[i];
-    h += `<div class="dh${d.iso === state.today ? ' is-today' : ''}"><span class="dow">${d.dow}요일</span><span class="md">${d.label}</span>${d.note ? `<span class="dn">${esc(d.note)}</span>` : ''}</div>`;
+    h += `<div class="dh${d.iso === state.today ? ' is-today' : ''}${d.past ? ' is-past' : ''}"><span class="dow">${d.dow}요일</span><span class="md">${d.label}</span>${d.note ? `<span class="dn">${esc(d.note)}</span>` : ''}</div>`;
   });
   w.periods.forEach(p => {
     h += periodHtml(p);
@@ -793,21 +833,32 @@ $('#openReserve').onclick = () => {
   $('#rList').innerHTML = keys.map(k => `<li>${esc(selLabel(k))}</li>`).join('');
   $('#rName').value = store.get('name') || '';
   $('#rErr').textContent = '';
+  const hourKeys = keys.filter(k => state.hourRooms.has(k.split('|')[0]));
+  $('#rTimeBox').hidden = !hourKeys.length;
+  if (hourKeys.length) {
+    const days = new Set(hourKeys.map(k => k.split('|')[1]));
+    const hs = hourKeys.map(k => Number(k.split('|')[2].slice(0, 2))).sort((a, b) => a - b);
+    $('#rTime').value = days.size === 1 ? `${pad(hs[0])}:00~${pad(hs[hs.length - 1] + 1)}:00` : '';
+  }
+  const allHour = hourKeys.length === keys.length;
+  $('#rContentLabel').textContent = allHour ? '사용 내용 (회의명 등)' : '학급 또는 수업명';
+  $('#rContent').placeholder = allHour ? '예: 학년 협의회' : '예: 4-3';
   $('#dlgReserve').showModal();
   $('#rContent').focus();
 };
 
 $('#rSubmit').onclick = async () => {
   const content = $('#rContent').value.trim(), name = $('#rName').value.trim();
-  if (!content) { $('#rErr').textContent = '학급 또는 수업명을 입력해 주세요.'; return; }
+  if (!content) { $('#rErr').textContent = '사용 내용(학급 또는 수업명)을 입력해 주세요.'; return; }
   if (!name) { $('#rErr').textContent = '신청자 이름을 입력해 주세요.'; return; }
+  const time = $('#rTimeBox').hidden ? '' : $('#rTime').value.trim();
   const btn = $('#rSubmit'); btn.disabled = true; btn.textContent = '예약하는 중…';
   const byRoom = {};
   [...state.selected.keys()].forEach(k => { const [room, iso, period] = k.split('|'); (byRoom[room] = byRoom[room] || []).push({ iso, period }); });
   let done = 0;
   try {
     for (const room of Object.keys(byRoom)) {
-      const r = await call('reserve', { room, items: byRoom[room], content, name });
+      const r = await call('reserve', { room, items: byRoom[room], content, name, time: state.hourRooms.has(room) ? time : '' });
       done += r.count;
       byRoom[room].forEach(it => state.selected.delete(`${room}|${it.iso}|${it.period}`));
     }
@@ -850,9 +901,12 @@ function openCleared(key) {
 }
 
 function openInfo(key) {
-  const { past, s } = state.slots.get(key);
+  const { room, past, s } = state.slots.get(key);
+  const hour = state.hourRooms.has(room);
   dlgShell(key, s.text);
-  const who = s.by ? `${esc(s.by)} 선생님이 웹앱으로 입력했습니다.` : s.isNew ? '시트에서 새로 입력된 예약입니다.' : '기존 시간표입니다.';
+  const who = s.by ? `${esc(s.by)} 선생님이 웹앱으로 입력했습니다.`
+    : hour ? `${s.time ? esc(s.time) + ', ' : ''}${s.who ? esc(s.who) + ' 선생님 예약입니다.' : '기존 예약입니다.'}`
+    : s.isNew ? '시트에서 새로 입력된 예약입니다.' : '기존 시간표입니다.';
   const origLine = s.orig ? ` 원래 시간표는 ‘${esc(s.orig)}’입니다.` : '';
   if (past) {
     $('#iBody').innerHTML = `<p class="info">${who}${origLine} 지난 날짜는 바꿀 수 없습니다.</p>`;
@@ -861,11 +915,12 @@ function openInfo(key) {
     bindClose(); $('#dlgInfo').showModal(); return;
   }
   $('#iBody').innerHTML = `<p class="info">${who}${origLine}</p>
-    <label for="mContent">학급 또는 수업명</label>
+    ${hour ? `<label for="mTime">사용 시간</label><input id="mTime" maxlength="30" value="${esc(s.time || '')}" autocomplete="off">` : ''}
+    <label for="mContent">${hour ? '사용 내용' : '학급 또는 수업명'}</label>
     <input id="mContent" maxlength="30" value="${esc(s.text)}" autocomplete="off">
     <label for="mName">변경하는 분 이름</label>
     <input id="mName" maxlength="20" value="${esc(store.get('name') || '')}">
-    <label class="agree" id="agreeBox"><input type="checkbox" id="mAgree"><span>기존 사용 학급(선생님)과 협의를 마쳤습니다.</span></label>`;
+    <label class="agree" id="agreeBox"><input type="checkbox" id="mAgree"><span>${hour ? '기존 예약자와' : '기존 사용 학급(선생님)과'} 협의를 마쳤습니다.</span></label>`;
   const clearLabel = s.by && !s.orig ? '예약 취소' : '이 날만 비우기';
   $('#iRow').className = 'row split';
   $('#iRow').innerHTML = `<div><button class="btn line" data-mod="clear">${clearLabel}</button>${s.orig ? '<button class="btn ghost" data-mod="revert">원래대로</button>' : ''}</div>
@@ -881,16 +936,17 @@ async function runModify(btn, key, action) {
   const { room, iso, period, s } = state.slots.get(key);
   const name = $('#mName').value.trim();
   const content = $('#mContent') ? $('#mContent').value.trim() : '';
+  const time = $('#mTime') ? $('#mTime').value.trim() : '';
   const agreed = !$('#agreeBox') || $('#agreeBox').hidden || $('#mAgree').checked;
   if (!name) { $('#iErr').textContent = '이름을 입력해 주세요.'; return; }
-  if (action === 'edit' && !content) { $('#iErr').textContent = '학급 또는 수업명을 입력해 주세요.'; return; }
-  if (action === 'edit' && content === s.text) { $('#iErr').textContent = '바뀐 내용이 없습니다.'; return; }
+  if (action === 'edit' && !content) { $('#iErr').textContent = '내용을 입력해 주세요.'; return; }
+  if (action === 'edit' && content === s.text && time === (s.time || '')) { $('#iErr').textContent = '바뀐 내용이 없습니다.'; return; }
   if (action !== 'unclear' && !agreed) { $('#iErr').textContent = '기존 사용 학급(선생님)과 협의했는지 확인해 주세요.'; return; }
   const label = btn.textContent;
   $$('#iRow button').forEach(b => b.disabled = true);
   btn.textContent = '처리하는 중…';
   try {
-    await call('modify', { room, iso, period, action, content, name, expect: s.text, agreed });
+    await call('modify', { room, iso, period, action, content, time, name, expect: s.text, agreed });
     store.set('name', name);
     $('#dlgInfo').close();
     toast({ edit: '수정했습니다', revert: '원래대로 되돌렸습니다', unclear: '비우기를 취소했습니다',
@@ -930,6 +986,21 @@ $('#memos').addEventListener('click', async e => {
   if (!confirm('이 메모를 지울까요?')) return;
   try { renderMemos(await call('deleteMemo', { id: b.dataset.memo, name })); } catch (err) { toast(err.message); }
 });
+
+/* ── 특별실 탭 넘기기 ── */
+function syncRoomArrows() {
+  const nav = $('#rooms');
+  $('#roomsPrev').disabled = nav.scrollLeft <= 2;
+  $('#roomsNext').disabled = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 2;
+}
+$('#roomsPrev').onclick = () => { const n = $('#rooms'); n.scrollLeft -= n.clientWidth * 0.7; };
+$('#roomsNext').onclick = () => { const n = $('#rooms'); n.scrollLeft += n.clientWidth * 0.7; };
+$('#rooms').addEventListener('scroll', syncRoomArrows, { passive: true });
+window.addEventListener('resize', syncRoomArrows);
+// 마우스 휠(위아래)로도 옆으로 넘기기
+$('#rooms').addEventListener('wheel', e => {
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); $('#rooms').scrollLeft += e.deltaY; }
+}, { passive: false });
 
 /* ── 이벤트 ── */
 $$('[data-fs]').forEach(b => b.onclick = () => setFont(Number(b.dataset.fs)));
