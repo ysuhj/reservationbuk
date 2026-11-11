@@ -1,0 +1,16 @@
+{
+  "name": "북가좌초 특별실 현황",
+  "short_name": "특별실",
+  "description": "북가좌초등학교 특별실 사용 현황 확인과 예약",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#123a2f",
+  "theme_color": "#123a2f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

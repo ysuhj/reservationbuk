@@ -1,0 +1,32 @@
+# v1.0.0 같은 태그를 올리면 Windows 설치 파일을 만들어 Releases에 올립니다.
+name: PC 앱 만들기
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: specialroom-windows
+          path: desktop/dist/*.exe
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: desktop/dist/*.exe
