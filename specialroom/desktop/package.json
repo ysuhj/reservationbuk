@@ -1,0 +1,32 @@
+{
+  "name": "bukgajwa-specialroom",
+  "productName": "북가좌초 특별실",
+  "version": "1.0.0",
+  "description": "북가좌초등학교 특별실 현황·예약 PC 앱",
+  "main": "main.js",
+  "author": "북가좌초등학교",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "31.0.0",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "kr.bukgajwa.specialroom",
+    "productName": "북가좌초 특별실",
+    "artifactName": "specialroom-setup-${version}.${ext}",
+    "files": ["main.js", "offline.html", "icon.png"],
+    "win": { "target": "nsis", "icon": "icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "특별실 예약"
+    }
+  }
+}
