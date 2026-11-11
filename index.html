@@ -222,18 +222,27 @@
   .toast { position: fixed; top: 18px; left: 50%; transform: translate(-50%, -160%); background: var(--ink); color: var(--bg); padding: 10px 20px; border-radius: 999px; font-weight: 600; font-size: 14px; transition: transform .22s cubic-bezier(.2,.8,.2,1); z-index: 10; }
   .toast.show { transform: translate(-50%, 0); }
 
-  /* ── 학교 비밀번호 화면 ── */
-  .gate { position: fixed; inset: 0; z-index: 20; background: var(--deep); color: var(--on-deep); display: grid; place-items: center; padding: 24px; }
-  .gate-box { width: min(380px, 100%); }
-  .gate img { width: 64px; height: 64px; border-radius: 16px; }
-  .gate p.k { margin: 22px 0 4px; color: var(--on-deep-muted); font-size: 15px; }
-  .gate h1 { margin: 0 0 28px; font-size: 40px; font-weight: 800; letter-spacing: -0.045em; line-height: 1.1; }
-  .gate input { width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08); color: var(--on-deep); }
-  .gate input::placeholder { color: var(--on-deep-muted); }
-  .gate input:focus { outline: none; border-color: var(--glow); }
-  .gate .btn { width: 100%; margin-top: 10px; padding: 14px; font-size: 16px; background: var(--glow); color: #3a2e00; }
-  .gate .err { color: #ffb4a3; min-height: 22px; margin: 12px 0 0; font-size: 14px; }
-  .gate small { display: block; margin-top: 18px; color: var(--on-deep-muted); font-size: 13px; }
+  /* ── 불러오는 중 표시 ── */
+  .busybar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 30; overflow: hidden; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .busybar.on { opacity: 1; }
+  .busybar::before { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; background: var(--glow); animation: busy 1.1s ease-in-out infinite; }
+  @keyframes busy { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+
+  /* ── 관리자: 예약 이력 ── */
+  dialog.wide { width: min(1080px, calc(100vw - 24px)); }
+  .hist-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .hist-filters select, .hist-filters input { font: inherit; font-size: 14px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .hist-filters input { flex: 1; min-width: 160px; }
+  .hist-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table.hist { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.hist th { position: sticky; top: 0; background: var(--bg); text-align: left; font-weight: 600; color: var(--muted); padding: 9px 10px; white-space: nowrap; z-index: 1; }
+  table.hist td { padding: 9px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+  table.hist td.nw { white-space: nowrap; }
+  .st { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .st-예약 { background: var(--new); color: var(--new-ink); }
+  .st-비움 { background: #fde2dc; color: #8a2f1d; }
+  .st-취소, .st-되돌림, .st-비움취소, .st-변경됨 { background: var(--taken); color: var(--muted); }
+  .hist-count { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
 
   @media (max-width: 860px) { .talk { grid-template-columns: 1fr; } }
   @media (max-width: 640px) {
@@ -268,7 +277,7 @@
         <button class="pill" id="installBtn" hidden>앱 설치</button>
         <a class="pill" id="desktopLink" href="#" target="_blank" rel="noopener" hidden>PC 앱 받기</a>
         <a class="pill" id="sheetLink" href="#" target="_blank" rel="noopener">시트 열기</a>
-        <button class="pill" id="lockBtn" title="이 기기에서 학교 비밀번호 지우기">잠금</button>
+        <button class="pill" id="adminBtn">관리자</button>
       </div>
     </div>
     <div class="hero">
@@ -355,18 +364,50 @@
 </dialog>
 
 <div class="toast" id="toast" role="status"></div>
+<div class="busybar" id="busybar" aria-hidden="true"></div>
 
-<section class="gate" id="gate" hidden>
-  <form class="gate-box" id="gateForm">
-    <img src="icons/icon-192.png" alt="">
-    <p class="k" id="gateSchool">북가좌초등학교</p>
-    <h1>특별실 현황</h1>
-    <input id="gatePw" type="password" placeholder="학교 비밀번호" autocomplete="current-password" required>
-    <button class="btn" id="gateBtn">들어가기</button>
-    <p class="err" id="gateErr" role="alert"></p>
-    <small>비밀번호는 교무실(특별실 담당)에 문의하세요. 이 기기에서는 다음부터 자동으로 들어갑니다.</small>
+<dialog id="dlgAdmin">
+  <form class="dlg" id="adminForm">
+    <p class="kicker">관리자</p>
+    <h3>예약 이력 보기</h3>
+    <label for="adminPw">관리자 비밀번호</label>
+    <input id="adminPw" type="password" autocomplete="current-password">
+    <p class="err" id="adminErr" role="alert"></p>
+    <div class="row">
+      <button type="button" class="btn ghost" data-close>닫기</button>
+      <button class="btn" id="adminGo">확인</button>
+    </div>
   </form>
-</section>
+</dialog>
+
+<dialog id="dlgHistory" class="wide">
+  <div class="dlg">
+    <p class="kicker">관리자</p>
+    <h3>예약 이력</h3>
+    <div class="hist-filters">
+      <select id="hRoom"><option value="">모든 특별실</option></select>
+      <select id="hStatus">
+        <option value="">모든 기록</option>
+        <option value="예약">현재 유효한 예약</option>
+        <option value="비움">이 날만 비움</option>
+        <option value="취소">취소</option>
+        <option value="되돌림">원래대로 되돌림</option>
+        <option value="변경됨">수정 전 기록</option>
+        <option value="비움취소">비우기 취소</option>
+      </select>
+      <input id="hSearch" type="search" placeholder="이름·학급·날짜 검색">
+    </div>
+    <div class="hist-wrap"><table class="hist">
+      <thead><tr><th>기록 시각</th><th>특별실</th><th>날짜</th><th>교시</th><th>내용</th><th>이전 내용</th><th>신청자</th><th>상태</th></tr></thead>
+      <tbody id="hBody"></tbody>
+    </table></div>
+    <p class="hist-count" id="hCount"></p>
+    <div class="row">
+      <button class="btn ghost" id="hRefresh">새로고침</button>
+      <button class="btn" data-close>닫기</button>
+    </div>
+  </div>
+</dialog>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -382,7 +423,7 @@ const store = {
 };
 const state = {
   view: store.get('view') || 'week', rooms: [], room: null, today: null, anchor: null,
-  pw: store.get('pw') || '', data: null, slots: new Map(), selected: new Map(), dayIdx: 0, bell: {}, sheetUrl: '#'
+  adminPw: '', history: [], data: null, slots: new Map(), selected: new Map(), dayIdx: 0, bell: {}, sheetUrl: '#'
 };
 
 const CFG = window.APP_CONFIG || {};
@@ -396,7 +437,7 @@ async function call(fn, ...args) {
     res = await fetch(CFG.API_URL, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 사전 요청(CORS preflight) 없이 보내기
-      body: JSON.stringify({ fn, args, pw: state.pw })
+      body: JSON.stringify({ fn, args, pw: state.adminPw || '' })
     });
   } catch (e) {
     throw new Error('서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.');
@@ -404,7 +445,7 @@ async function call(fn, ...args) {
   if (!res.ok) throw new Error(`서버 오류가 났습니다 (${res.status}).`);
   const j = await res.json();
   if (!j.ok) {
-    if (j.code === 'AUTH') { store.del('pw'); state.pw = ''; showGate(j.error); throw new AuthError(j.error); }
+    if (j.code === 'AUTH') { state.adminPw = ''; throw new AuthError(j.error); }
     throw new Error(j.error);
   }
   return j.data;
@@ -432,51 +473,159 @@ function toast(msg) {
 }
 
 /* ── 시작 ── */
-function showGate(msg) {
-  $('#gate').hidden = false;
-  $('#gateErr').textContent = msg || '';
-  $('#gatePw').value = '';
-  setTimeout(() => $('#gatePw').focus(), 50);
-}
-$('#gateForm').addEventListener('submit', async e => {
+/* ── 관리자: 예약 이력 ── */
+$('#adminBtn').onclick = () => {
+  if (state.adminPw) { openHistory(); return; }
+  $('#adminPw').value = ''; $('#adminErr').textContent = '';
+  $('#dlgAdmin').showModal(); $('#adminPw').focus();
+};
+$('#adminForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const btn = $('#gateBtn'); btn.disabled = true; btn.textContent = '확인하는 중…';
-  state.pw = $('#gatePw').value;
+  const btn = $('#adminGo'); btn.disabled = true; btn.textContent = '확인하는 중…';
+  state.adminPw = $('#adminPw').value;
   try {
-    await call('login');
-    store.set('pw', state.pw);
-    $('#gate').hidden = true;
-    init();
+    state.history = await call('getHistory');
+    $('#dlgAdmin').close();
+    openHistory(true);
   } catch (err) {
-    if (!(err instanceof AuthError)) $('#gateErr').textContent = err.message;
+    $('#adminErr').textContent = err.message;
   } finally {
-    btn.disabled = false; btn.textContent = '들어가기';
+    btn.disabled = false; btn.textContent = '확인';
   }
 });
-$('#lockBtn').onclick = () => {
-  if (!confirm('이 기기에 저장된 학교 비밀번호를 지울까요?')) return;
-  store.del('pw'); state.pw = ''; showGate();
-};
+async function openHistory(loaded) {
+  const rooms = state.rooms.map(r => `<option value="${esc(r)}">${esc(splitRoom(r).name)}</option>`).join('');
+  $('#hRoom').innerHTML = '<option value="">모든 특별실</option>' + rooms;
+  if (!$('#dlgHistory').open) $('#dlgHistory').showModal();
+  if (!loaded) await loadHistory(); else renderHistory();
+}
+async function loadHistory() {
+  $('#hBody').innerHTML = '<tr><td colspan="8">불러오는 중…</td></tr>';
+  try { state.history = await call('getHistory'); renderHistory(); }
+  catch (err) {
+    if (err instanceof AuthError) { $('#dlgHistory').close(); $('#adminBtn').click(); $('#adminErr').textContent = err.message; return; }
+    $('#hBody').innerHTML = `<tr><td colspan="8">${esc(err.message)}</td></tr>`;
+  }
+}
+function renderHistory() {
+  const room = $('#hRoom').value, st = $('#hStatus').value, q = $('#hSearch').value.trim().toLowerCase();
+  const rows = state.history.filter(h => (!room || h.room === room) && (!st || h.status === st) &&
+    (!q || [h.name, h.content, h.prev, h.iso, h.period, h.room].join(' ').toLowerCase().includes(q)));
+  $('#hBody').innerHTML = rows.length ? rows.slice(0, 500).map(h => `<tr>
+      <td class="nw">${esc(h.time)}</td><td class="nw">${esc(splitRoom(h.room).name)}</td><td class="nw">${esc(h.iso)}</td>
+      <td class="nw">${esc(h.period)}</td><td>${esc(h.content)}</td><td>${esc(h.prev)}</td><td class="nw">${esc(h.name)}</td>
+      <td><span class="st st-${esc(h.status)}">${esc(h.status)}</span></td></tr>`).join('')
+    : '<tr><td colspan="8">조건에 맞는 기록이 없습니다.</td></tr>';
+  $('#hCount').textContent = `전체 ${state.history.length}건 중 ${rows.length}건` + (rows.length > 500 ? ' (최근 500건만 표시)' : '');
+}
+['#hRoom', '#hStatus'].forEach(id => $(id).addEventListener('change', renderHistory));
+$('#hSearch').addEventListener('input', renderHistory);
+$('#hRefresh').onclick = loadHistory;
+
+/* ── 빠르게 보이기: 저장본 먼저, 최신은 뒤에서 ── */
+const viewCache = new Map();
+let busyCount = 0;
+function busy(on) {
+  busyCount = Math.max(0, busyCount + (on ? 1 : -1));
+  $('#busybar').classList.toggle('on', busyCount > 0);
+}
+function viewReq(anchor = state.anchor) {
+  const a = isoToDate(anchor);
+  if (state.view === 'day') return { type: 'day', iso: anchor };
+  if (state.view === 'week') return { type: 'week', room: state.room, monday: mondayOf(anchor) };
+  return { type: 'month', room: state.room, year: a.getFullYear(), month: a.getMonth() + 1 };
+}
+const reqKey = r => JSON.stringify(r);
+function shiftAnchor(anchor, dir) {
+  if (state.view === 'day') return stepWeekday(anchor, dir);
+  if (state.view === 'week') return addDays(mondayOf(anchor), 7 * dir);
+  const a = isoToDate(anchor);
+  return weekdayOf(dateToIso(new Date(a.getFullYear(), a.getMonth() + dir, 1)));
+}
+function readBoot() { try { return JSON.parse(store.get('boot') || 'null'); } catch (e) { return null; } }
+function saveBoot() {
+  if (!state.init) return;
+  const key = reqKey(viewReq());
+  store.set('boot', JSON.stringify({ init: state.init, key, data: viewCache.get(key) || null }));
+}
+function invalidate() { viewCache.clear(); }
+
+function applyInit(r) {
+  state.init = { rooms: r.rooms, today: r.today, bell: r.bell, sheetUrl: r.sheetUrl, school: r.school, notices: r.notices, memos: r.memos };
+  if (r.today && r.today !== state.today) { state.today = r.today; state.anchor = weekdayOf(r.today); }
+  Object.assign(state, { rooms: r.rooms, bell: r.bell, sheetUrl: r.sheetUrl });
+  $('#school').textContent = `${r.school} 특별실`;
+  $('#sheetLink').href = r.sheetUrl;
+  if (!r.rooms.includes(state.room)) state.room = r.rooms[0];
+  renderNotices(r.notices); renderMemos(r.memos);
+}
+
+function show(data, key) {
+  const first = state.shownKey !== key;
+  state.data = data; state.shownKey = key;
+  if (state.view === 'week' && first) {
+    const i = data.days.findIndex(d => d.iso === state.anchor);
+    state.dayIdx = i >= 0 ? i : 0;
+  }
+  render();
+}
 
 async function init() {
   setFont(Number(store.get('fs')) || 1);
-  if (CFG.SCHOOL_NAME) { $('#gateSchool').textContent = CFG.SCHOOL_NAME; }
-  if (!state.pw) { showGate(); return; }
-  try {
-    const r = await call('getInit');
-    Object.assign(state, { rooms: r.rooms, today: r.today, bell: r.bell, sheetUrl: r.sheetUrl, anchor: weekdayOf(r.today) });
-    $('#school').textContent = `${r.school} 특별실`;
-    $('#sheetLink').href = r.sheetUrl;
-    const saved = store.get('room');
-    state.room = r.rooms.includes(saved) ? saved : r.rooms[0];
-    renderNotices(r.notices); renderMemos(r.memos);
-    $('#memoName').value = store.get('name') || '';
-    await load();
-  } catch (e) {
-    if (e instanceof AuthError) return;
-    $('#heroTitle').textContent = '불러오지 못했습니다';
-    $('#view').innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+  $('#memoName').value = store.get('name') || '';
+  state.today = dateToIso(new Date());
+  state.anchor = weekdayOf(state.today);
+  state.room = store.get('room') || '';
+
+  // 1) 지난번에 본 화면을 바로 보여 주기
+  const boot = readBoot();
+  if (boot && boot.init) {
+    applyInit(boot.init);
+    state.today = dateToIso(new Date()); state.anchor = weekdayOf(state.today);
+    if (boot.key && boot.data) viewCache.set(boot.key, boot.data);
+    renderChrome();
+    const c = viewCache.get(reqKey(viewReq()));
+    if (c) show(c, reqKey(viewReq()));
   }
+
+  // 2) 기본 정보 + 현재 화면을 한 번에 받아오기
+  const req = state.view === 'day' || state.room ? viewReq() : null;
+  busy(true);
+  try {
+    const r = await call('getInit', req);
+    applyInit(r);
+    const key = reqKey(viewReq());
+    if (req && r.view && key === reqKey(req)) {
+      viewCache.set(key, r.view);
+      renderChrome();
+      show(r.view, key);
+      saveBoot();
+      prefetch();
+    } else {
+      await load();
+    }
+  } catch (e) {
+    if (!state.data) {
+      $('#heroTitle').textContent = '불러오지 못했습니다';
+      $('#view').innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+    } else toast('최신 정보를 불러오지 못했습니다');
+  } finally {
+    busy(false);
+  }
+}
+
+// 앞뒤 화면을 미리 받아 두기 (한 번에 하나씩, 조용히)
+let prefetching = false;
+async function prefetch() {
+  if (prefetching) return;
+  prefetching = true;
+  try {
+    for (const dir of [1, -1]) {
+      const r = viewReq(shiftAnchor(state.anchor, dir)), k = reqKey(r);
+      if (viewCache.has(k)) continue;
+      try { viewCache.set(k, await call('getView', r)); } catch (e) { break; }
+    }
+  } finally { prefetching = false; }
 }
 
 function setFont(v) {
@@ -521,23 +670,26 @@ function renderChrome() {
 
 async function load() {
   renderChrome();
-  $('#view').classList.add('loading');
+  const req = viewReq(), key = reqKey(req);
+  state.reqKey = key;
+  const cached = viewCache.get(key);
+  if (cached) show(cached, key);          // 저장본이 있으면 즉시
+  else $('#view').classList.add('loading');
+  busy(true);
   try {
-    const a = isoToDate(state.anchor);
-    if (state.view === 'day') state.data = await call('getDay', state.anchor);
-    else if (state.view === 'week') state.data = await call('getWeek', state.room, mondayOf(state.anchor));
-    else state.data = await call('getMonth', state.room, a.getFullYear(), a.getMonth() + 1);
-    if (state.view === 'week') {
-      const i = state.data.days.findIndex(d => d.iso === state.anchor);
-      state.dayIdx = i >= 0 ? i : 0;
-    }
-    render();
+    const fresh = await call('getView', req);
+    viewCache.set(key, fresh);
+    if (state.reqKey !== key) return;      // 그사이 다른 화면으로 이동함
+    if (!cached || JSON.stringify(cached) !== JSON.stringify(fresh)) show(fresh, key);
+    saveBoot();
+    prefetch();
   } catch (e) {
-    if (e instanceof AuthError) return;
-    $('#view').innerHTML = `<p class="empty">${esc(e.message)}</p>`;
-    $('#tabs').innerHTML = '';
+    if (state.reqKey !== key) return;
+    if (cached) toast('최신 정보를 불러오지 못했습니다');
+    else { $('#view').innerHTML = `<p class="empty">${esc(e.message)}</p>`; $('#tabs').innerHTML = ''; }
   } finally {
-    $('#view').classList.remove('loading');
+    busy(false);
+    if (state.reqKey === key) $('#view').classList.remove('loading');
   }
 }
 
@@ -667,6 +819,7 @@ $('#rSubmit').onclick = async () => {
     $('#rErr').textContent = (done ? `${done}개는 예약되었습니다. ` : '') + e.message;
   } finally {
     btn.disabled = false; btn.textContent = '예약하기';
+    invalidate();
     await load();
   }
 };
@@ -742,6 +895,7 @@ async function runModify(btn, key, action) {
     $('#dlgInfo').close();
     toast({ edit: '수정했습니다', revert: '원래대로 되돌렸습니다', unclear: '비우기를 취소했습니다',
       clear: label === '예약 취소' ? '예약을 취소했습니다' : '이 날만 비웠습니다' }[action]);
+    invalidate();
     await load();
   } catch (e) {
     $('#iErr').textContent = e.message;
@@ -786,14 +940,9 @@ $('#rooms').addEventListener('click', e => {
 });
 $('#prev').onclick = () => step(-1);
 $('#next').onclick = () => step(1);
-function step(dir) {
-  if (state.view === 'day') state.anchor = stepWeekday(state.anchor, dir);
-  else if (state.view === 'week') state.anchor = addDays(mondayOf(state.anchor), 7 * dir);
-  else { const a = isoToDate(state.anchor); state.anchor = weekdayOf(dateToIso(new Date(a.getFullYear(), a.getMonth() + dir, 1))); }
-  load();
-}
+function step(dir) { state.anchor = shiftAnchor(state.anchor, dir); load(); }
 $('#now').onclick = () => { state.anchor = weekdayOf(state.today); load(); };
-$('#refresh').onclick = () => load();
+$('#refresh').onclick = () => { invalidate(); load(); };
 $('#tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-day]'); if (!b) return;
   state.dayIdx = Number(b.dataset.day); renderWeek();
@@ -829,8 +978,18 @@ $('#installBtn').onclick = async () => {
   installEvt = null; $('#installBtn').hidden = true;
 };
 window.addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('앱을 설치했습니다'); });
-if (CFG.DESKTOP_DOWNLOAD_URL && !IS_DESKTOP && !matchMedia('(display-mode: standalone)').matches && !mq.matches) {
-  $('#desktopLink').href = CFG.DESKTOP_DOWNLOAD_URL; $('#desktopLink').hidden = false;
+// config.js에 주소가 없으면 GitHub Pages 주소(사용자명.github.io/저장소)에서 Releases 주소를 알아냄
+function releasesUrl() {
+  const u = CFG.DESKTOP_DOWNLOAD_URL || '';
+  if (u && !u.includes('깃허브사용자명')) return u;
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+  if (!m) return '';
+  const repo = location.pathname.split('/').filter(Boolean)[0];
+  return `https://github.com/${m[1]}/${repo || m[1] + '.github.io'}/releases/latest`;
+}
+const DL = releasesUrl();
+if (DL && !IS_DESKTOP && !matchMedia('(display-mode: standalone)').matches && !mq.matches) {
+  $('#desktopLink').href = DL; $('#desktopLink').hidden = false;
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});

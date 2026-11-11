@@ -1,5 +1,5 @@
 // 화면 파일만 저장해 두고(오프라인에서도 열림), 예약 데이터는 항상 서버에서 새로 받습니다.
-const CACHE = 'specialroom-v1';
+const CACHE = 'specialroom-v2';
 const SHELL = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
