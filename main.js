@@ -4,7 +4,7 @@ const { app, BrowserWindow, shell, Menu } = require('electron');
 const path = require('path');
 
 // GitHub Pages 주소로 바꾸세요
-const APP_URL = 'https://깃허브사용자명.github.io/specialroom/';
+const APP_URL = 'https://ysuhj.github.io/reservationbuk/';
 
 let win = null;
 
