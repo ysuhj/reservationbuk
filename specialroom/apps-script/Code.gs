@@ -2,9 +2,13 @@
  * 북가좌초등학교 특별실 현황·예약 API (Google Apps Script)
  * 화면은 GitHub Pages(docs 폴더)에 있고, 이 스크립트는 시트를 읽고 쓰는 API만 맡습니다.
  *
+ * 누구나 비밀번호 없이 현황을 보고 예약할 수 있습니다.
+ * 예약 이력(관리자 화면)만 비밀번호로 보호합니다.
+ *
  * 설정: Apps Script 편집기 → 프로젝트 설정(톱니바퀴) → 스크립트 속성에
- *   SCHOOL_PASSWORD = 선생님들께 알려 줄 학교 비밀번호
- * 를 추가하세요. 비밀번호는 코드나 GitHub에 적지 않습니다.
+ *   ADMIN_PASSWORD = 관리자 비밀번호
+ * 를 추가하세요. (예전에 만든 SCHOOL_PASSWORD가 있으면 그것도 그대로 인식합니다.)
+ * 비밀번호는 코드나 GitHub에 적지 않습니다.
  */
 const CONFIG = {
   SPREADSHEET_ID: '1DR11TocphTfxy7Nyh8GU31NgpX8RUqpAbBLlzeAaSeY',
@@ -31,10 +35,8 @@ const LOG_HEADERS = ['기록시각', '특별실', '날짜', '교시', '내용', 
 const MEMO_HEADERS = ['ID', '작성시각', '작성자', '내용', '상태'];
 
 /* ───────── API 입구 ───────── */
-const API = {
-  login: () => ({ ok: true }),
-  getInit, getWeek, getDay, getMonth, reserve, modify, getMemos, addMemo, deleteMemo
-};
+const PUBLIC_API = { getInit, getWeek, getDay, getMonth, reserve, modify, getMemos, addMemo, deleteMemo };
+const ADMIN_API = { adminLogin: () => ({ ok: true }), getHistory };
 
 function doGet() {
   return json_({ ok: true, data: '북가좌초 특별실 API가 동작 중입니다.' });
@@ -43,15 +45,20 @@ function doGet() {
 function doPost(e) {
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    const pw = PropertiesService.getScriptProperties().getProperty('SCHOOL_PASSWORD');
-    if (!pw) return json_({ ok: false, error: '관리자가 아직 학교 비밀번호(SCHOOL_PASSWORD)를 설정하지 않았습니다.' });
-    if (String(req.pw || '') !== pw) {
-      Utilities.sleep(700); // 비밀번호 마구 대입하기 늦추기
-      return json_({ ok: false, code: 'AUTH', error: '학교 비밀번호가 맞지 않습니다.' });
+    const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+    const args = Array.isArray(req.args) ? req.args : [];
+    if (has(PUBLIC_API, req.fn)) return json_({ ok: true, data: PUBLIC_API[req.fn].apply(null, args) });
+    if (has(ADMIN_API, req.fn)) {
+      const props = PropertiesService.getScriptProperties();
+      const pw = props.getProperty('ADMIN_PASSWORD') || props.getProperty('SCHOOL_PASSWORD');
+      if (!pw) return json_({ ok: false, error: '관리자 비밀번호(ADMIN_PASSWORD)가 아직 설정되지 않았습니다.' });
+      if (String(req.pw || '') !== pw) {
+        Utilities.sleep(700); // 비밀번호 마구 대입하기 늦추기
+        return json_({ ok: false, code: 'AUTH', error: '관리자 비밀번호가 맞지 않습니다.' });
+      }
+      return json_({ ok: true, data: ADMIN_API[req.fn].apply(null, args) });
     }
-    if (!Object.prototype.hasOwnProperty.call(API, req.fn)) return json_({ ok: false, error: '알 수 없는 요청입니다.' });
-    const data = API[req.fn].apply(null, Array.isArray(req.args) ? req.args : []);
-    return json_({ ok: true, data });
+    return json_({ ok: false, error: '알 수 없는 요청입니다.' });
   } catch (err) {
     return json_({ ok: false, error: (err && err.message) || String(err) });
   }
@@ -473,6 +480,16 @@ function modify(req) {
     }
     return done();
   });
+}
+
+/* ───────── 관리자: 예약 이력 ───────── */
+function getHistory() {
+  const sh = logSheet_();
+  const n = sh.getLastRow();
+  if (n < 2) return [];
+  return sh.getRange(2, 1, n - 1, LOG_HEADERS.length).getDisplayValues()
+    .map(r => ({ time: r[0], room: r[1], iso: r[2], period: r[3], content: r[4], name: r[5], prev: r[6], status: r[9], changed: r[10] }))
+    .reverse().slice(0, 2000);
 }
 
 /* ───────── 소통 보드 ───────── */
